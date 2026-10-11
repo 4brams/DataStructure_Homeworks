@@ -3,7 +3,7 @@
 #endif
 
 #ifndef MAX_EXPRESSION_SIZE
-#define MAX_EXPRESSION_SIZE 512
+#define MAX_EXPRESSION_SIZE 255
 #endif
 
 #include <stdint.h>

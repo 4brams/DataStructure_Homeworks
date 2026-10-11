@@ -68,9 +68,9 @@ void calculateOne(stack * const operatorStack, stack * const operandStack, bool 
 
     if(operandStack->length >= 2 && operatorStack->length >= 1)
     {
-        char operator = pop(operatorStack);
-        double first = pop(operandStack);
-        double second = pop(operandStack);
+        const char operator = pop(operatorStack);
+        const double first = pop(operandStack);
+        const double second = pop(operandStack);
 
         if(first == 0 && operator == '/')
         {
@@ -84,15 +84,16 @@ void calculateOne(stack * const operatorStack, stack * const operandStack, bool 
     }
     else if(operandStack->length == 1 && operatorStack->length == 1 && top(operatorStack) == '-')
     {
-        char operator = pop(operatorStack);
-        double first = pop(operandStack);
-        double second = 0;
+        const char operator = pop(operatorStack);
+        const double first = pop(operandStack);
+        const double second = 0;
+
         Operation operation = getOperation(operator);
         push(operandStack, operation(second, first), isError);
     }
     else
     {
-        printf("Error: Invalid Expression.\n");
+        printf("Error: Invalid expression.\n");
         *isError = true;
         return;
     }
@@ -333,7 +334,7 @@ void updateTime(struct ev_loop *loop, ev_timer *watcher, int revents)
     (void)loop;
     (void)watcher;
     (void)revents;
-    printf("\x1b[s\x1b[H");
+    printf("\x1b[s\033[H\033[1J");
     printCurrentTime();
     printf("\x1b[u");
     fflush(stdout);
@@ -344,10 +345,11 @@ int main(void)
     struct ev_loop *loop = EV_DEFAULT;
 
     //time
-    printf("\x1b[2J");
+    printf("\033[2J\033[H");
+    printf("\n\n\n");
     fflush(stdout);
     ev_timer timer_watcher;
-    ev_timer_init(&timer_watcher, updateTime, 1.0, 1.0);
+    ev_timer_init(&timer_watcher, updateTime, 0, 1.0);
     ev_timer_start(loop, &timer_watcher);
 
     //expression
