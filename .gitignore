@@ -1,0 +1,7 @@
+*.docx
+*.pdf
+*.vscode
+*.exe
+*.o
+**/build/
+/HW1/src/calculator
