@@ -3,5 +3,6 @@
 *.vscode
 *.exe
 *.o
+*.zip
 **/build/
 /HW1/src/calculator
