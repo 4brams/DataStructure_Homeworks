@@ -1,6 +1,4 @@
 #define MAX_COMMAND_LENGTH 256
-#define MAX_KEY_LENGTH 256
-#define MAX_PHONE_NUMBER_LENGTH 11
 
 #include <stdio.h>
 #include <stdint.h>
@@ -9,7 +7,8 @@
 #include <unistd.h>
 #include <ev.h>
 
-#include "structures.h"
+#include "db.h"
+#include "db_data_type.h"
 
 bool is_start_with(const char* const a, const char* const b, const uint8_t length)
 {
@@ -26,24 +25,23 @@ bool is_start_with(const char* const a, const char* const b, const uint8_t lengt
     return match;
 }
 
-char* get_one_arg(const char* const cmd, uint8_t* const cursor)
+void get_next_arg(const char* const cmd, char* const arg, uint8_t* const cursor)
 {
-    char* arg = (char*)malloc(MAX_COMMAND_LENGTH * sizeof(char));
     bool is_get_first_char = false;
 
     for(uint8_t i = 0; *cursor < MAX_COMMAND_LENGTH - 1; (*cursor)++)
     {
+        if(!is_get_first_char && cmd[*cursor] == ' ')
+        {
+            continue;
+        }
+
         if(cmd[*cursor] == ' ' || cmd[*cursor] == '\n' || cmd[*cursor] == '\0')
         {
-            if(!is_get_first_char)
-            {
-                printf("Error: Unexpected space at index:%d\n", *cursor);
-                return NULL;
-            }
             *cursor += 1;
             arg[i] = '\0';
             //printf("arg: %s\n", arg);
-            return arg;
+            return;
         }
 
         arg[i] = cmd[*cursor];
@@ -51,57 +49,122 @@ char* get_one_arg(const char* const cmd, uint8_t* const cursor)
         i++;
     }
 
-    return NULL;
+    return;
 }
 
-void process_command(const char* const cmd, struct Node** first)
+void process_command(void** const db, const char* const cmd)
 {   
-    //printf("\n%s\n", cmd);
-    //printf("\n%d\n", is_start_with(cmd, "CREATE ", 7));
-    if(is_start_with(cmd, "CREATE ", 7)){
-        uint8_t cursor = 7;
-        char* key = get_one_arg(cmd, &cursor);
-        //printf("key: %s\n", key);
-        struct Communicate* value = (struct Communicate*)malloc(sizeof(struct Communicate));
-        value->phone_number = (char*)get_one_arg(cmd, &cursor);
-        //printf("val: %s\n", (char*)value);
+    uint8_t cursor = 0;
+    char operation[MAX_COMMAND_LENGTH] = "";
+    get_next_arg(cmd, operation, &cursor);
 
-        if(!(key && value))
+    //printf("Operation: %s\n", operation);
+
+    if(strcmp(operation, "CREATE") == 0){
+        char key[MAX_COMMAND_LENGTH] = "";
+        char val[MAX_COMMAND_LENGTH] = "";
+        get_next_arg(cmd, key, &cursor);
+        get_next_arg(cmd, val, &cursor);
+        //printf("Key: %s\n",key);
+        //printf("Val: %s\n",val);
+
+        if(key[0] == '\0' || val[0]  == '\0')
+        {
+            printf("Error: Command '%s' requires 2 arguments(%s key value).\n", operation, operation);
+            return;
+        }
+
+        void* mem = save_data_in_mem(3, 1, (void*)val);
+
+        if(!mem)
         {
             return;
         }
 
-        struct Node* new = create_node(first, key, (void*)value);
-        
+        void* new = CREATE(db, key, 3, 1, mem);
+
+        if(!new)
+        {
+            return;
+        }
+
         printf("Created\n");
-        printf("Key: %s\n", new->key);
-        printf("Value: %s\n", ((struct Communicate*)(new->value))->phone_number);
+        PRINT(new);
+
         return;
     }
-    else if(is_start_with(cmd, "READ ", 5))
+    else if(strcmp(operation, "READ") == 0)
     {
-        uint8_t cursor = 5;
-        char* key = get_one_arg(cmd, &cursor);
+        char key[MAX_COMMAND_LENGTH] = "";
+        get_next_arg(cmd, key, &cursor);
 
-        if(!key)
+        if(key[0] == '\0')
         {
+            printf("Error: Command '%s' requires 1 arguments(%s key).\n", operation, operation);
             return;
         }
 
-        struct Node* res = search_node(*first, key);
+        void* res = READ((const void ** const)db, key);
+
+        if(res)
+        {
+            PRINT(res);
+        }
+
+        return;
+    }
+    else if(strcmp(operation, "UPDATE") == 0)
+    {
+        char key[MAX_COMMAND_LENGTH] = "";
+        char val[MAX_COMMAND_LENGTH] = "";
+        get_next_arg(cmd, key, &cursor);
+        get_next_arg(cmd, val, &cursor);
+
+        if(key[0] == '\0' || val[0]  == '\0')
+        {
+            printf("Error: Command '%s' requires 2 arguments(%s key value).\n", operation, operation);
+            return;
+        }
+
+
+        void* mem = save_data_in_mem(3, 1, (void*)val);
+
+        if(mem)
+        {
+            void* new = UPDATE((const void ** const)db, key, 3, 1, mem);
+            if(new)
+            {
+                printf("Updated\n");
+                PRINT(new);
+            }
+        }
+
+        return;
+    }
+    else if(strcmp(operation, "DELETE") == 0)
+    {
+        char key[MAX_COMMAND_LENGTH] = "";
+        get_next_arg(cmd, key, &cursor);
+
+        if(key[0] == '\0')
+        {
+            printf("Error: Command '%s' requires 1 arguments(%s key).\n", operation, operation);
+            return;
+        }
+
+        bool res = DELETE(db, key);
         
-        if(!res)
+        if(res)
         {
-            printf("Error: Key '%s' DNE.\n", key);
-            return;
+            printf("Deleted.\n");
+            printf("Key:%s\n", key);
         }
-        printf("Key: %s\n", res->key);
-        printf("Val: %s\n", ((struct Communicate*)(res->value))->phone_number);
+
         return;
     }
     else
     {
-        printf("Error: Unknown Command.\n");
+        printf("Error: Unknown Command'%s'.", operation);
         return;
     }
 }
@@ -120,8 +183,7 @@ static void stdin_cb(EV_P_ ev_io *w, int revents)
             exit(0);
         }
 
-        struct Node** first = (struct Node**)w->data;
-        process_command(buffer, first);
+        process_command(w->data, buffer);
 
         printf("\nCommand\t>");
         fflush(stdout);
@@ -130,11 +192,11 @@ static void stdin_cb(EV_P_ ev_io *w, int revents)
 
 int main(void)
 {
-    struct Node* first = init_list();
     struct ev_loop* loop = EV_DEFAULT;
+    void** db = init_db();
 
     ev_io stdin_watcher;
-    stdin_watcher.data = &first;
+    stdin_watcher.data = db;
     ev_io_init(&stdin_watcher, stdin_cb, STDIN_FILENO, EV_READ);
     ev_io_start(loop, &stdin_watcher);
 
@@ -143,6 +205,12 @@ int main(void)
     ev_run(loop, 0);
 
     ev_io_stop(loop, &stdin_watcher);
+
+    // char str1[10] = "hello\0";
+    // char str2[10] = "hello";
+    // char* ptr = str1;
+
+    // printf("%d\n", strcmp(ptr, "hello") == 0);
 
     return 0;
 }
