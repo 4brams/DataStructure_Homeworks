@@ -1,15 +1,25 @@
-### Build：
+## 編譯指令
 
-`docker build -t c-env .`
+- 需編譯檔案：`main.c`
 
-### Run：
+##### 環境(Docker)
 
-`docker run --rm -it -v "${PWD}/src:/app" c-env`
+- 創建Image：`docker build -t c-env .`
+- 創建Container：`docker run --rm -it -v "${PWD}/src:/app" c-env`
 
-### Compile：
+##### 編譯(擇一)
 
-`make run`
+- 編譯指令(Makefile, recommended)：`make run`
+- 編譯指令(gcc)：`gcc -Wall -Wextra -O2 main.c -o main -lev -g -fsanitize=address`
 
-### Execute：
+## 執行方式
 
 `./main`
+
+## 操作範例
+
+![Demo](/demo.png "操作範例")
+
+## 離開方式
+
+輸入`EXIT`或`exit`

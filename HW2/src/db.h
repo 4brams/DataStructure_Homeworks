@@ -1,4 +1,10 @@
 #define MAX_KEY_LENGTH 21
+#define MAX_PHONE_NUMBER_LENGTH 11
+
+struct Communicate
+{
+    char phone_number[MAX_PHONE_NUMBER_LENGTH];
+};
 
 struct Node
 {   
@@ -8,6 +14,63 @@ struct Node
     void* value;
     struct Node* next; 
 };
+
+static size_t value_element_size(const uint8_t type)
+{
+    switch(type)
+    {
+    case 1:
+        return sizeof(int);
+    case 2:
+        return sizeof(char);
+    case 3:
+        return sizeof(struct Communicate);
+    default:
+        return 0;
+    }
+}
+
+static void* copy_value(const uint8_t type, const uint16_t length,
+    const void* const value)
+{
+    const size_t element_size = value_element_size(type);
+    if(element_size == 0 || (length > 0 && value == NULL))
+    {
+        return NULL;
+    }
+
+    if(length == 0)
+    {
+        return NULL;
+    }
+
+    void* copy = malloc(element_size * length);
+    if(copy != NULL)
+    {
+        memcpy(copy, value, element_size * length);
+    }
+    return copy;
+}
+
+static struct Node* copy_node(const struct Node* const source)
+{
+    struct Node* copy = (struct Node*)malloc(sizeof(struct Node));
+    if(copy == NULL)
+    {
+        return NULL;
+    }
+
+    *copy = *source;
+    copy->next = NULL;
+    copy->value = copy_value(source->type, source->length, source->value);
+    if(source->length > 0 && copy->value == NULL)
+    {
+        free(copy);
+        return NULL;
+    }
+
+    return copy;
+}
 
 static struct Node* get_last_node(const struct Node* const first)
 {   
@@ -45,10 +108,11 @@ static struct Node* search_node(const struct Node* const first, const char* cons
 void** init_db()
 {
     void** first = (void**)malloc(sizeof(struct Node*));
+    *first = NULL;
     return first;
 }
 
-void* READ(const void** const db, const char* const key)
+struct Node* READ(const void** const db, const char* const key)
 {
     const struct Node* const res = search_node((struct Node*)*db, key);
     if(!res)
@@ -57,52 +121,83 @@ void* READ(const void** const db, const char* const key)
         return NULL;
     }
 
-    struct Node* new = (struct Node*)malloc(sizeof(struct Node));
-    strcpy(new->key, res->key);
-    new->length = res->length;
-    new->type = res->type;
-    new->value = res->value;
-    new->next = NULL;
-
-    return (void*)new;
+    struct Node* copy = copy_node(res);
+    if(copy == NULL)
+    {
+        printf("Error: Unable to copy key '%s'.\n", key);
+    }
+    return copy;
 }
 
-void* UPDATE(const void** const db, const char* const key, const uint8_t type, const uint16_t length, const void* const value)
+void FREE_NODE_COPY(struct Node* const node)
+{
+    if(node != NULL)
+    {
+        free(node->value);
+        free(node);
+    }
+}
+
+bool UPDATE(const void** const db, const char* const key, const uint8_t type,
+    const uint16_t length, const void* const value)
 {
     struct Node* target = (struct Node*)search_node(*db, key);
-    if(target != NULL)
-    {
-        target->type = type;
-        target->length = length;
-        target->value = (void*)value;
-        return READ(db, key);
-    }
-    else
+    if(target == NULL)
     {
         printf("Error: Key '%s' DNE.\n", key);
-        return NULL;
+        return false;
     }
+
+    void* value_copy = copy_value(type, length, value);
+    if(value_element_size(type) == 0 || (length > 0 && value_copy == NULL))
+    {
+        printf("Error: Unable to copy value for key '%s'.\n", key);
+        return false;
+    }
+
+    free(target->value);
+    target->type = type;
+    target->length = length;
+    target->value = value_copy;
+    return true;
 }
 
-void* CREATE(void** const db, const char* const key, const uint8_t type, const uint16_t length, const void* const value)
+bool CREATE(void** const db, const char* const key, const uint8_t type,
+    const uint16_t length, const void* const value)
 {   
     if(search_node(*db, key) != NULL)
     {
         printf("Error: Key '%s' has already existed.\n", key);
-        return NULL;
+        return false;
     }
+
+    const size_t key_length = strlen(key);
+    if(key_length >= MAX_KEY_LENGTH)
+    {
+        printf("Error: Key exceeds the maximum length of %d.\n", MAX_KEY_LENGTH - 1);
+        return false;
+    }
+
+    void* value_copy = copy_value(type, length, value);
+    if(value_element_size(type) == 0 || (length > 0 && value_copy == NULL))
+    {
+        printf("Error: Unable to copy value for key '%s'.\n", key);
+        return false;
+    }
+
     struct Node* new = (struct Node*)malloc(sizeof(struct Node));
+    if(new == NULL)
+    {
+        free(value_copy);
+        printf("Error: Unable to create key '%s'.\n", key);
+        return false;
+    }
+
     new->type = type;
     new->length = length;
-    strcpy(new->key, (char*)key);
-    new->value = (void*)value;
+    memcpy(new->key, key, key_length + 1);
+    new->value = value_copy;
     new->next = NULL;
-
-    // printf("type: %d\n",new->type);
-    // printf("length: %d\n",new->length);
-    // printf("key: %s\n",new->key);
-    // printf("val: %p\n",new->value);
-    // printf("next: %p\n",new->next);
 
     if(!*db)
     {
@@ -114,7 +209,7 @@ void* CREATE(void** const db, const char* const key, const uint8_t type, const u
         last->next = new;
     }
 
-    return READ((const void ** const)db, key);
+    return true;
 }
 
 bool DELETE(void** const db, const char* const key)
@@ -152,4 +247,19 @@ bool DELETE(void** const db, const char* const key)
         printf("Error: Key '%s' DNE.\n", key);
         return false;
     }
+}
+
+void REMOVE_DB(void** const db)
+{
+    struct Node* cursor = (struct Node*)*db;
+    while(cursor)
+    {
+        struct Node* temp = cursor;
+        cursor = cursor->next;
+        free(temp->value);
+        free(temp);
+    }
+
+    free(db);
+    return;
 }

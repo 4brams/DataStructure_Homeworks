@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -O2
-LDFLAGS = -lev
+LDFLAGS = -lev -g -fsanitize=address 
 
 TARGET = main
 

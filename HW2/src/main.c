@@ -81,15 +81,20 @@ void process_command(void** const db, const char* const cmd)
             return;
         }
 
-        void* new = CREATE(db, key, 3, 1, mem);
-
-        if(!new)
+        const bool created = CREATE(db, key, 3, 1, mem);
+        free(mem);
+        if(!created)
         {
             return;
         }
 
         printf("Created\n");
-        PRINT(new);
+        struct Node* new = READ((const void ** const)db, key);
+        if(new != NULL)
+        {
+            PRINT(new);
+            FREE_NODE_COPY(new);
+        }
 
         return;
     }
@@ -104,11 +109,12 @@ void process_command(void** const db, const char* const cmd)
             return;
         }
 
-        void* res = READ((const void ** const)db, key);
+        struct Node* res = READ((const void ** const)db, key);
 
         if(res)
         {
             PRINT(res);
+            FREE_NODE_COPY(res);
         }
 
         return;
@@ -131,11 +137,17 @@ void process_command(void** const db, const char* const cmd)
 
         if(mem)
         {
-            void* new = UPDATE((const void ** const)db, key, 3, 1, mem);
-            if(new)
+            const bool updated = UPDATE((const void ** const)db, key, 3, 1, mem);
+            free(mem);
+            if(updated)
             {
                 printf("Updated\n");
-                PRINT(new);
+                struct Node* new = READ((const void ** const)db, key);
+                if(new != NULL)
+                {
+                    PRINT(new);
+                    FREE_NODE_COPY(new);
+                }
             }
         }
 
@@ -162,9 +174,15 @@ void process_command(void** const db, const char* const cmd)
 
         return;
     }
+    else if((strcmp(operation, "EXIT") == 0) || (strcmp(operation, "exit") == 0))
+    {
+        REMOVE_DB(db);
+        exit(0);
+        return;
+    }
     else
     {
-        printf("Error: Unknown Command'%s'.", operation);
+        printf("Error: Unknown Command '%s'.\n", operation);
         return;
     }
 }
@@ -177,11 +195,6 @@ static void stdin_cb(EV_P_ ev_io *w, int revents)
     if (fgets(buffer, sizeof(buffer), stdin) != NULL) {
         //printf("Buffer >%s", buffer);
         //fflush(stdout);
-
-        if(is_start_with(buffer, "EXIT", 4) || is_start_with(buffer, "exit", 4) )
-        {
-            exit(0);
-        }
 
         process_command(w->data, buffer);
 

@@ -1,10 +1,3 @@
-#define MAX_PHONE_NUMBER_LENGTH 11
-
-struct Communicate
-{
-    char phone_number[MAX_PHONE_NUMBER_LENGTH];
-};
-
 static void* get_data_mem(const uint8_t type, const uint16_t length)
 {   
     if(length == 0)
@@ -26,22 +19,22 @@ static void* get_data_mem(const uint8_t type, const uint16_t length)
     }
 }
 
-// uint8_t data_type_id(char* str){
-//     if(strcmp(str, "INT") == 0)
-//     {
-//         return 1;
-//     }
-//     else if(strcmp(str, "CHAR") == 0)
-//     {
-//         return 2;
-//     }
-//     else if(strcmp(str, "COMMUTE") == 0)
-//     {
-//         return 3;
-//     }
+uint8_t data_type_id(char* str){
+    if(strcmp(str, "INT") == 0)
+    {
+        return 1;
+    }
+    else if(strcmp(str, "CHAR") == 0)
+    {
+        return 2;
+    }
+    else if(strcmp(str, "COMMUTE") == 0)
+    {
+        return 3;
+    }
 
-//     return 0;
-// }
+    return 0;
+}
 
 void* save_data_in_mem(const uint8_t type, const uint16_t length, const void* const data)
 {
@@ -87,9 +80,15 @@ void* save_data_in_mem(const uint8_t type, const uint16_t length, const void* co
             }
             for(uint16_t i = 0; i < length; i++)
             {
-                strncpy(mem[i].phone_number, (const char*)data + i * MAX_COMMAND_LENGTH,
-                    MAX_PHONE_NUMBER_LENGTH - 1);
-                mem[i].phone_number[MAX_PHONE_NUMBER_LENGTH - 1] = '\0';
+                const char* phone_number = (const char*)data + i * MAX_COMMAND_LENGTH;
+                size_t phone_number_length = 0;
+                while(phone_number_length < MAX_PHONE_NUMBER_LENGTH - 1
+                    && phone_number[phone_number_length] != '\0')
+                {
+                    phone_number_length++;
+                }
+                memcpy(mem[i].phone_number, phone_number, phone_number_length);
+                mem[i].phone_number[phone_number_length] = '\0';
             }
             return (void*)mem;
         }
