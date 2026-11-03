@@ -1,5 +1,6 @@
 *.docx
 *.pdf
+*.pptx
 *.vscode
 *.exe
 *.o
